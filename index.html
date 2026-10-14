@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Betriebsdienst-Quiz</title>
+<meta name="theme-color" content="#1F3A5F">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" defer></script>
+<style>
+:root {
+  --bg: #EEF1EF; --flaeche: #FFFFFF; --tinte: #15202B; --leise: #55616B; --linie: #C7CFCC;
+  --primaer: #1F3A5F; --primaer-tinte: #FFFFFF; --gelb: #F2B300;
+  --richtig: #1E7B3C; --richtig-bg: #E3F2E7; --falsch: #B3122E; --falsch-bg: #F8E1E5;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10161B; --flaeche: #1A232B; --tinte: #EEF2F4; --leise: #9AA7B1; --linie: #34414C;
+    --primaer: #8DB8EC; --primaer-tinte: #0E1A27;
+    --richtig: #5CC27E; --richtig-bg: #16301F; --falsch: #FF7A8A; --falsch-bg: #3A1A20;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--tinte); }
+body {
+  font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 19px; line-height: 1.45;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* Warnstreifen wie am Gefahrenraum: das eine auffaellige Element, alles andere bleibt ruhig */
+.streifen { height: 10px; background: repeating-linear-gradient(-45deg, var(--gelb) 0 14px, #111 14px 28px); }
+main { max-width: 560px; margin: 0 auto; padding: 20px 18px 48px; }
+h1 { font-size: 30px; line-height: 1.15; margin: 10px 0 6px; }
+h2 { font-size: 22px; margin: 22px 0 8px; }
+p { margin: 8px 0; }
+.leise { color: var(--leise); }
+.knopf {
+  display: block; width: 100%; min-height: 58px; margin: 10px 0; padding: 14px 18px;
+  font: inherit; font-weight: 700; text-align: center; cursor: pointer;
+  border-radius: 12px; border: 2px solid var(--primaer);
+  background: var(--primaer); color: var(--primaer-tinte);
+}
+.knopf.zweit { background: transparent; color: var(--primaer); }
+.knopf:disabled { opacity: .45; cursor: default; }
+.knopf:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--gelb); outline-offset: 2px; }
+.antwort { text-align: left; font-weight: 400; background: var(--flaeche); color: var(--tinte); border-color: var(--linie); }
+.antwort:disabled { opacity: 1; }
+.antwort.gewaehlt { border-color: var(--primaer); border-width: 3px; }
+.antwort.richtig { border-color: var(--richtig); background: var(--richtig-bg); font-weight: 700; }
+.antwort.falsch { border-color: var(--falsch); background: var(--falsch-bg); }
+.frage { font-size: 23px; font-weight: 700; line-height: 1.3; margin: 14px 0 10px; }
+.karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 12px; padding: 14px 16px; margin: 12px 0; }
+.ok { color: var(--richtig); font-weight: 700; }
+.nok { color: var(--falsch); font-weight: 700; }
+input, select {
+  width: 100%; font: inherit; padding: 14px; border-radius: 10px;
+  border: 2px solid var(--linie); background: var(--flaeche); color: var(--tinte);
+}
+label { display: block; font-weight: 700; margin: 14px 0 6px; }
+.code { font-size: 60px; font-weight: 700; letter-spacing: .14em; text-align: center; margin: 4px 0; }
+.timer { height: 16px; border-radius: 8px; background: var(--linie); overflow: hidden; margin: 6px 0; }
+.timer > i { display: block; height: 100%; width: 100%; background: repeating-linear-gradient(-45deg, var(--gelb) 0 10px, #111 10px 20px); }
+.zeile { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+ol.rang, ul.spieler { list-style: none; padding: 0; margin: 8px 0; }
+ol.rang li, ul.spieler li { display: flex; justify-content: space-between; padding: 12px 4px; border-bottom: 1px solid var(--linie); }
+li.ich { font-weight: 700; }
+li.weg { opacity: .5; }
+.linkknopf { background: none; border: 0; padding: 0; font: inherit; color: var(--primaer); text-decoration: underline; cursor: pointer; }
+#druck { display: none; }
+@media print {
+  body > *:not(#druck) { display: none !important; }
+  #druck { display: block; color: #000; font-size: 13pt; }
+  #druck h2 { page-break-after: avoid; }
+  #druck .seitenumbruch { page-break-before: always; }
+  #druck li { margin-bottom: 10px; page-break-inside: avoid; }
+}
+@media (prefers-reduced-motion: no-preference) { .timer > i { transition: width .25s linear; } }
+</style>
+</head>
+<body>
+<div class="streifen" aria-hidden="true"></div>
+<main id="app"></main>
+<div id="druck"></div>
+
+<script>
+"use strict";
+
+// Werte aus der Firebase-Konsole hier eintragen. Solange apiKey leer ist, laeuft nur
+// der Einzelspieler – so ist die Seite schon vor der Einrichtung nutzbar.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDQILvS89RABzCi5VnVrdmWIKyXhyWg_lU",
+  authDomain: "vl-plus-39-quiz.firebaseapp.com",
+  databaseURL: "https://vl-plus-39-quiz-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "vl-plus-39-quiz",
+  appId: "1:574747519571:web:0876c7bece47d6fe5cf4a6"
+};
+
+const RUNDE_FRAGEN = 10;
+const SEKUNDEN = 20;
+const AUFLOESUNG_MS = 6000;
+
+const THEMEN = [
+  { id: "rahmen", name: "§ 23 – Rechtlicher Rahmen" },
+  { id: "begriffe", name: "Signale, Kommunikation, Gleisanlagen" },
+  { id: "fahrten", name: "Zugfahrt und Verschubfahrt" },
+  { id: "gefahrenraum", name: "Gefahrenraum und Schutzausrüstung" },
+  { id: "ek", name: "Eisenbahnkreuzungen bewachen" }
+];
+
+// Fragen nur aus dem Gesetzestext (RIS, EisbEPV § 23). Die Kursunterlagen kommen spaeter dazu,
+// deshalb sind die anderen Themen noch leer statt mit erfundenen Inhalten gefuellt.
+const FRAGEN = [
+  { id: "r01", thema: "rahmen", frage: "Wie viele Unterrichtseinheiten muss die Ausbildung „Betriebsdienst“ mindestens umfassen?",
+    antworten: ["4", "6", "8", "12"], richtig: 2, erklaerung: "§ 23 Abs. 4: mindestens 8 Unterrichtseinheiten." },
+  { id: "r02", thema: "rahmen", frage: "Wie viele Unterrichtseinheiten können aus einer abgeschlossenen Ausbildung nach dem ArbeitnehmerInnenschutzgesetz höchstens angerechnet werden?",
+    antworten: ["2", "4", "6", "8"], richtig: 2, erklaerung: "§ 23 Abs. 5: höchstens sechs Unterrichtseinheiten." },
+  { id: "r03", thema: "rahmen", frage: "Bis wann muss die Prüfung über die allgemeinen Fachkenntnisse abgelegt werden?",
+    antworten: ["Innerhalb eines Monats nach Ausbildungsende", "Innerhalb von sechs Monaten nach Ausbildungsende", "Innerhalb eines Jahres ab Ende der Ausbildung", "Innerhalb von zwei Jahren"],
+    richtig: 2, erklaerung: "§ 23 Abs. 6: innerhalb eines Jahres ab Ende der Ausbildung." },
+  { id: "r04", thema: "rahmen", frage: "Welche Art von Prüfung ist nach der Ausbildung „Betriebsdienst“ vorgesehen?",
+    antworten: ["Schriftliche Prüfung", "Mündliche Prüfung", "Praktische Prüfung am Gleis", "Keine Prüfung"], richtig: 1, erklaerung: "§ 23 Abs. 6: eine mündliche Prüfung." },
+  { id: "r05", thema: "rahmen", frage: "Was ist vor Ausübung einer Tätigkeit im Betriebsdienst zusätzlich erforderlich?",
+    antworten: ["Eine Einweisung in die örtlichen Verhältnisse", "Ein Triebfahrzeugführerschein", "Eine zweite mündliche Prüfung", "Eine schriftliche Erlaubnis für jeden Einsatz"],
+    richtig: 0, erklaerung: "§ 23 Abs. 7: zusätzlich eine Einweisung in die örtlichen Verhältnisse." },
+  { id: "r06", thema: "rahmen", frage: "Wann darf man Eisenbahnanlagen auch ohne die Eignung für den Betriebsdienst betreten?",
+    antworten: ["Wenn man eine Warnweste trägt", "Wenn man von geschulten Eisenbahnbediensteten begleitet wird und betriebliche Maßnahmen ein gefahrloses Betreten gewährleisten", "Wenn gerade kein Zug in Sicht ist", "Wenn man die Anlage nur kurz überquert"],
+    richtig: 1, erklaerung: "§ 23 Abs. 2: Begleitung durch geschulte Eisenbahnbedienstete plus zusätzliche betriebliche Maßnahmen." },
+  { id: "r07", thema: "rahmen", frage: "Wodurch werden Eisenbahnkreuzungen im Betriebsdienst bewacht?",
+    antworten: ["Durch Armzeichen", "Durch Lichtsignale am Fahrzeug", "Durch Absperrbänder", "Durch Funkdurchsagen"], richtig: 0, erklaerung: "§ 23 Abs. 1 Z 3 und Abs. 3 Z 3: durch Armzeichen." },
+  { id: "r08", thema: "rahmen", frage: "Was gehört NICHT zum Aufgabenbereich „Betriebsdienst“?",
+    antworten: ["Tätigkeiten auf und in Eisenbahnanlagen", "Betriebliche Meldung von wahrgenommenen Unregelmäßigkeiten", "Tätigkeiten im Notfallmanagement auf Anordnung", "Das Führen von Triebfahrzeugen"],
+    richtig: 3, erklaerung: "§ 23 Abs. 3 zählt die Aufgaben auf – das Führen von Triebfahrzeugen ist nicht dabei." },
+  { id: "r09", thema: "rahmen", frage: "Wann werden Tätigkeiten im Notfallmanagement im Betriebsdienst vorgenommen?",
+    antworten: ["Jederzeit nach eigenem Ermessen", "Auf Anordnung", "Nur nach Dienstschluss", "Nur mit schriftlichem Antrag"], richtig: 1, erklaerung: "§ 23 Abs. 3 Z 4: auf Anordnung." },
+  { id: "r10", thema: "rahmen", frage: "Was umfasst das Thema „Bewachung von Eisenbahnkreuzungen durch Armzeichen“?",
+    antworten: ["Signalmittel, Zeichengebung und Bewachungsvorgang (Beginn und Ende)", "Fahrplanerstellung und Zugbildung", "Bremsprobe und Kupplung", "Fahrkartenkontrolle"],
+    richtig: 0, erklaerung: "§ 23 Abs. 4 Z 4 lit. a bis c." },
+  { id: "r11", thema: "rahmen", frage: "Welche Formen der Kommunikation nennt § 23 für den Betriebsdienst?",
+    antworten: ["Nur schriftlich", "Fernmündlich, mündlich und schriftlich", "Nur per Funk", "Nur mündlich"], richtig: 1, erklaerung: "§ 23 Abs. 3 Z 2." },
+  { id: "r12", thema: "rahmen", frage: "Wann entfällt die mündliche Prüfung für den Betriebsdienst?",
+    antworten: ["Wenn man über 50 Jahre alt ist", "Wenn innerhalb der Frist eine mündliche Prüfung für eine darauf aufbauende Ausbildung bestanden wird, die diese Fachkenntnisse berücksichtigt", "Wenn man eine Ausbildung nach dem ArbeitnehmerInnenschutzgesetz hat", "Sie entfällt nie"],
+    richtig: 1, erklaerung: "§ 23 Abs. 6." }
+];
+const FRAGE_NACH_ID = Object.fromEntries(FRAGEN.map(q => [q.id, q]));
+
+// ---------- Hilfen ----------
+
+// localStorage kann in privaten Tabs werfen; dann laeuft das Quiz eben ohne Gedaechtnis weiter
+function lies(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+function schreib(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+// Alles per textContent, damit Spielernamen aus der Datenbank nie als HTML laufen
+function h(tag, props, ...kinder) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === "text") el.textContent = v;
+    else if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, "");
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const c of kinder.flat(Infinity)) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+}
+function knopf(text, onclick, klasse = "", extra = {}) { return h("button", { class: "knopf " + klasse, text, onclick, ...extra }); }
+function mischen(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function fragenZuThema(t) { return t === "alle" ? FRAGEN : FRAGEN.filter(q => q.thema === t); }
+
+let letzteSeite = "";
+// Nur bei echtem Seitenwechsel nach oben springen, sonst springt der Bildschirm bei jeder Live-Aktualisierung
+function zeige(schluessel, ...kinder) {
+  document.getElementById("app").replaceChildren(...kinder.flat(Infinity).filter(c => c != null && c !== false));
+  if (schluessel !== letzteSeite) window.scrollTo(0, 0);
+  letzteSeite = schluessel;
+}
+
+let name = lies("name", "");
+
+// ---------- Name und Start ----------
+
+function nameSeite(weiter) {
+  const feld = h("input", { id: "name", maxlength: "20", autocomplete: "nickname", value: name });
+  const fertig = () => {
+    const n = feld.value.trim();
+    if (!n) { feld.focus(); return; }
+    name = n; schreib("name", n); weiter();
+  };
+  feld.addEventListener("keydown", e => { if (e.key === "Enter") fertig(); });
+  zeige("name",
+    h("h1", { text: "Wie heißt du?" }),
+    h("p", { class: "leise", text: "Der Name wird den anderen im Spiel angezeigt." }),
+    h("label", { for: "name", text: "Dein Name" }), feld,
+    knopf("Weiter", fertig)
+  );
+  feld.focus();
+}
+
+function startseite() {
+  if (!name) return nameSeite(startseite);
+  const mp = mehrspielerBereit();
+  zeige("start",
+    h("h1", { text: "Betriebsdienst-Quiz" }),
+    h("p", {}, "Hallo " + name + " · ", h("button", { class: "linkknopf", text: "Name ändern", onclick: () => nameSeite(startseite) })),
+    knopf("Alleine üben", themenSeite),
+    knopf("1 gegen 1", () => mp ? raumErstellen("1v1") : nichtEingerichtet()),
+    knopf("Jeder gegen jeden", () => mp ? raumErstellen("alle") : nichtEingerichtet()),
+    knopf("Einem Spiel beitreten", () => mp ? beitretenSeite("") : nichtEingerichtet(), "zweit"),
+    knopf("Fragen ausdrucken", drucken, "zweit")
+  );
+}
+
+function nichtEingerichtet() {
+  zeige("info",
+    h("h1", { text: "Noch nicht verfügbar" }),
+    h("p", { text: "Spielen mit anderen ist noch nicht eingerichtet. Alleine üben geht schon." }),
+    knopf("Zurück", startseite)
+  );
+}
+
+function fehlerSeite(text) {
+  zeige("fehler", h("h1", { text: "Das hat nicht geklappt" }), h("p", { text }), knopf("Zur Startseite", startseite));
+}
+
+// ---------- Einzelspieler ----------
+
+let solo = null;
+
+function themenSeite() {
+  const fehler = lies("fehler", []).filter(id => FRAGE_NACH_ID[id]);
+  zeige("themen",
+    h("h1", { text: "Alleine üben" }),
+    h("p", { class: "leise", text: "Wähle ein Thema." }),
+    knopf("Alle Themen (" + FRAGEN.length + " Fragen)", () => soloStart(FRAGEN)),
+    THEMEN.map(t => {
+      const n = fragenZuThema(t.id).length;
+      return n ? knopf(t.name + " (" + n + ")", () => soloStart(fragenZuThema(t.id)), "zweit")
+               : knopf(t.name + " – Fragen folgen", null, "zweit", { disabled: true });
+    }),
+    fehler.length ? knopf("Meine Fehler üben (" + fehler.length + ")", () => soloStart(fehler.map(id => FRAGE_NACH_ID[id]))) : null,
+    knopf("Zurück", startseite, "zweit")
+  );
+}
+
+function soloStart(liste) {
+  solo = { fragen: mischen(liste).slice(0, RUNDE_FRAGEN), i: 0, richtig: 0 };
+  soloFrage();
+}
+
+function soloFrage() {
+  const q = solo.fragen[solo.i];
+  // Reihenfolge mischen, damit man sich nicht "die dritte Antwort" merkt statt des Inhalts
+  const reihenfolge = mischen(q.antworten.map((_, i) => i));
+  const knoepfe = reihenfolge.map(idx => knopf(q.antworten[idx], () => soloAntwort(idx), "antwort", { "data-idx": idx }));
+  const unten = h("div");
+  zeige("solo-" + solo.i,
+    h("p", { class: "leise", text: "Frage " + (solo.i + 1) + " von " + solo.fragen.length }),
+    h("div", { class: "frage", text: q.frage }),
+    knoepfe, unten
+  );
+
+  function soloAntwort(idx) {
+    const korrekt = idx === q.richtig;
+    if (korrekt) solo.richtig++;
+    for (const b of knoepfe) {
+      const i = Number(b.dataset.idx);
+      b.disabled = true;
+      if (i === q.richtig) b.classList.add("richtig");
+      else if (i === idx) b.classList.add("falsch");
+    }
+    // Fehlerliste: falsch beantwortet kommt rein, beim naechsten richtigen Mal wieder raus
+    const fehler = new Set(lies("fehler", []));
+    korrekt ? fehler.delete(q.id) : fehler.add(q.id);
+    schreib("fehler", [...fehler]);
+    const letzte = solo.i + 1 >= solo.fragen.length;
+    unten.replaceChildren(
+      h("div", { class: "karte" },
+        h("p", { class: korrekt ? "ok" : "nok", text: korrekt ? "Richtig!" : "Leider falsch." }),
+        h("p", { text: q.erklaerung })),
+      knopf(letzte ? "Ergebnis anzeigen" : "Nächste Frage", () => { solo.i++; letzte ? soloEnde() : soloFrage(); })
+    );
+  }
+}
+
+function soloEnde() {
+  const n = solo.fragen.length, r = solo.richtig;
+  const fehler = lies("fehler", []).length;
+  zeige("solo-ende",
+    h("h1", { text: r + " von " + n + " richtig" }),
+    h("p", { text: r === n ? "Alles richtig – sehr gut!" : r >= n * 0.7 ? "Gut gemacht. Die Fehler kannst du gleich nochmal üben." : "Noch etwas üben – die falschen Fragen sind gespeichert." }),
+    fehler ? knopf("Meine Fehler üben (" + fehler + ")", () => soloStart(lies("fehler", []).map(id => FRAGE_NACH_ID[id]).filter(Boolean))) : null,
+    knopf("Anderes Thema", themenSeite, "zweit"),
+    knopf("Zur Startseite", startseite, "zweit")
+  );
+}
+
+// ---------- Mehrspieler (Firebase) ----------
+
+function mehrspielerBereit() { return !!FIREBASE_CONFIG.apiKey && typeof firebase !== "undefined"; }
+
+let fb = null;
+async function verbinden() {
+  if (fb) return fb;
+  firebase.initializeApp(FIREBASE_CONFIG);
+  // Anonyme Anmeldung laeuft unsichtbar – die Datenbank-Regeln brauchen eine Kennung, die Spieler aber kein Konto
+  await firebase.auth().signInAnonymously();
+  const db = firebase.database();
+  let versatz = 0;
+  // Serverzeit statt Handyuhr, sonst laeuft der Countdown auf falsch gestellten Handys anders
+  db.ref(".info/serverTimeOffset").on("value", s => { versatz = s.val() || 0; });
+  fb = { db, uid: firebase.auth().currentUser.uid, jetzt: () => Date.now() + versatz };
+  return fb;
+}
+
+let raum = null;      // { code, ref }
+let stand = null;     // letzter Datenstand des Raums
+let takt = null;
+let erledigt = "";    // verhindert, dass der Host eine Frage doppelt aufloest
+let weiterGeplant = "";
+
+async function raumErstellen(modus) {
+  zeige("laden", h("p", { text: "Raum wird erstellt …" }));
+  try {
+    const { db, uid } = await verbinden();
+    let code = null;
+    for (let v = 0; v < 15; v++) {
+      const c = String(1000 + Math.floor(Math.random() * 9000));
+      const s = await db.ref("raeume/" + c + "/erstellt").get();
+      // Alte Raeume (aelter als 12 h) duerfen ueberschrieben werden, sonst gehen die Codes irgendwann aus
+      if (!s.exists() || Date.now() - s.val() > 12 * 3600 * 1000) { code = c; break; }
+    }
+    if (!code) return fehlerSeite("Es wurde kein freier Raum gefunden. Bitte nochmal versuchen.");
+    await db.ref("raeume/" + code).set({
+      modus, host: uid, phase: "lobby", thema: "alle", index: -1, frist: 0,
+      erstellt: firebase.database.ServerValue.TIMESTAMP,
+      spieler: { [uid]: { name, punkte: 0, online: true } }
+    });
+    raumBetreten(code);
+  } catch (e) {
+    console.error(e);
+    fehlerSeite("Keine Verbindung. Prüfe dein Internet und versuche es nochmal.");
+  }
+}
+
+function beitretenSeite(vorgabe) {
+  const feld = h("input", { id: "code", inputmode: "numeric", maxlength: "4", value: vorgabe, autocomplete: "off" });
+  const los = () => { const c = feld.value.trim(); if (/^\d{4}$/.test(c)) beitreten(c); else feld.focus(); };
+  feld.addEventListener("keydown", e => { if (e.key === "Enter") los(); });
+  zeige("beitreten",
+    h("h1", { text: "Einem Spiel beitreten" }),
+    h("label", { for: "code", text: "Raum-Code (4 Ziffern)" }), feld,
+    knopf("Beitreten", los), knopf("Zurück", startseite, "zweit")
+  );
+  feld.focus();
+}
+
+async function beitreten(code) {
+  if (!mehrspielerBereit()) return nichtEingerichtet();
+  zeige("laden", h("p", { text: "Verbinde mit Raum " + code + " …" }));
+  try {
+    const { db, uid } = await verbinden();
+    const s = await db.ref("raeume/" + code).get();
+    if (!s.exists()) return fehlerSeite("Den Raum " + code + " gibt es nicht. Ist der Code richtig?");
+    const r = s.val();
+    const spieler = r.spieler || {};
+    if (!spieler[uid]) {
+      if (r.phase !== "lobby") return fehlerSeite("Dieses Spiel läuft schon. Warte auf die nächste Runde und tritt dann bei.");
+      if (r.modus === "1v1" && Object.keys(spieler).length >= 2) return fehlerSeite("Dieser 1-gegen-1-Raum ist schon voll.");
+      await db.ref("raeume/" + code + "/spieler/" + uid).set({ name, punkte: 0, online: true });
+    }
+    raumBetreten(code);
+  } catch (e) {
+    console.error(e);
+    fehlerSeite("Keine Verbindung. Prüfe dein Internet und versuche es nochmal.");
+  }
+}
+
+function raumBetreten(code) {
+  const { db, uid } = fb;
+  const ref = db.ref("raeume/" + code);
+  raum = { code, ref };
+  // Code in die Adresse schreiben: wer versehentlich neu laedt, landet wieder im selben Raum
+  history.replaceState(null, "", "?raum=" + code);
+  const online = ref.child("spieler/" + uid + "/online");
+  // Bei jeder (Wieder-)Verbindung neu setzen – Handys trennen oft kurz, wenn der Bildschirm ausgeht
+  db.ref(".info/connected").on("value", s => {
+    if (s.val() === true && raum && raum.code === code) { online.onDisconnect().set(false); online.set(true); }
+  });
+  ref.on("value", snap => {
+    stand = snap.val();
+    if (!stand) { raumVerlassen(false); return fehlerSeite("Der Raum existiert nicht mehr."); }
+    spielleitungPruefen();
+    raumAnzeigen();
+    hostAblauf();
+  });
+  clearInterval(takt);
+  takt = setInterval(() => { timerAktualisieren(); hostAblauf(); }, 250);
+}
+
+function raumVerlassen(abmelden = true) {
+  if (!raum) return;
+  const { ref } = raum;
+  ref.off();
+  fb.db.ref(".info/connected").off();
+  clearInterval(takt);
+  if (abmelden && stand) {
+    const ich = ref.child("spieler/" + fb.uid);
+    ich.child("online").onDisconnect().cancel();
+    // In der Lobby ganz austragen, im laufenden Spiel nur offline – die Punkte sollen in der Rangliste bleiben
+    stand.phase === "lobby" ? ich.remove() : ich.child("online").set(false);
+    if (stand.host === fb.uid) {
+      const nachfolger = Object.keys(stand.spieler || {}).find(u => u !== fb.uid && stand.spieler[u].online !== false);
+      if (nachfolger) ref.child("host").set(nachfolger);
+    }
+  }
+  raum = null; stand = null;
+  history.replaceState(null, "", location.pathname);
+}
+
+function onlineSpieler(r) { return Object.keys(r.spieler || {}).filter(u => r.spieler[u].online !== false); }
+
+// Faellt das Handy der Spielleitung aus, uebernimmt automatisch ein anderer – sonst bleibt das Spiel haengen
+function spielleitungPruefen() {
+  const r = stand, host = r.spieler && r.spieler[r.host];
+  if (host && host.online !== false) return;
+  const kandidaten = onlineSpieler(r).sort();
+  if (kandidaten[0] === fb.uid) raum.ref.child("host").set(fb.uid);
+}
+
+function teilen() {
+  const url = location.origin + location.pathname + "?raum=" + raum.code;
+  const text = "Mach mit beim Betriebsdienst-Quiz! Raum " + raum.code + ": " + url;
+  location.href = "https://wa.me/?text=" + encodeURIComponent(text);
+}
+
+function rangliste(r) {
+  const liste = Object.entries(r.spieler || {}).sort((a, b) => (b[1].punkte || 0) - (a[1].punkte || 0));
+  return h("ol", { class: "rang" }, liste.map(([u, s], i) =>
+    h("li", { class: (u === fb.uid ? "ich " : "") + (s.online === false ? "weg" : "") },
+      h("span", { text: (i + 1) + ". " + s.name + (u === fb.uid ? " (du)" : "") }),
+      h("span", { text: (s.punkte || 0) + " P" }))));
+}
+
+function raumAnzeigen() {
+  const r = stand;
+  if (r.phase === "lobby") return lobbyAnzeigen(r);
+  if (r.phase === "frage") return frageAnzeigen(r);
+  if (r.phase === "aufloesung") return aufloesungAnzeigen(r);
+  if (r.phase === "ende") return endeAnzeigen(r);
+}
+
+function lobbyAnzeigen(r) {
+  const ichHost = r.host === fb.uid;
+  const ids = Object.keys(r.spieler || {});
+  const anzahl = onlineSpieler(r).length;
+  const genug = r.modus === "1v1" ? anzahl === 2 : anzahl >= 2;
+  const verfuegbar = THEMEN.filter(t => fragenZuThema(t.id).length);
+  const auswahl = h("select", { id: "thema", onchange: e => raum.ref.child("thema").set(e.target.value) },
+    h("option", { value: "alle", text: "Alle Themen" }),
+    verfuegbar.map(t => h("option", { value: t.id, text: t.name })));
+  auswahl.value = r.thema || "alle";
+  zeige("lobby",
+    h("h1", { text: r.modus === "1v1" ? "1 gegen 1" : "Jeder gegen jeden" }),
+    h("p", { class: "leise", text: "Raum-Code" }),
+    h("div", { class: "code", text: r.code || raum.code }),
+    knopf("Link per WhatsApp schicken", teilen),
+    h("h2", { text: "Mitspieler (" + ids.length + (r.modus === "1v1" ? " von 2" : "") + ")" }),
+    h("ul", { class: "spieler" }, ids.map(u => {
+      const s = r.spieler[u];
+      return h("li", { class: (u === fb.uid ? "ich " : "") + (s.online === false ? "weg" : "") },
+        h("span", { text: s.name + (u === fb.uid ? " (du)" : "") }),
+        h("span", { class: "leise", text: u === r.host ? "Spielleitung" : (s.online === false ? "offline" : "") }));
+    })),
+    ichHost ? [
+      h("label", { for: "thema", text: "Thema" }), auswahl,
+      knopf("Spiel starten", spielStarten, "", { disabled: !genug }),
+      genug ? null : h("p", { class: "leise", text: r.modus === "1v1" ? "Es müssen genau 2 Spieler im Raum sein." : "Es braucht mindestens 2 Spieler." })
+    ] : h("p", { class: "karte", text: "Warte, bis die Spielleitung das Spiel startet." }),
+    knopf("Raum verlassen", () => { raumVerlassen(); startseite(); }, "zweit")
+  );
+}
+
+function spielStarten() {
+  const r = stand;
+  const ids = mischen(fragenZuThema(r.thema || "alle")).slice(0, RUNDE_FRAGEN).map(q => q.id);
+  const upd = { phase: "frage", fragen: ids, index: 0, frist: fb.jetzt() + SEKUNDEN * 1000, antworten: null };
+  for (const u of Object.keys(r.spieler || {})) { upd["spieler/" + u + "/punkte"] = 0; upd["spieler/" + u + "/zuletzt"] = null; }
+  raum.ref.update(upd);
+}
+
+function aktuelleFrage(r) { return FRAGE_NACH_ID[(r.fragen || [])[r.index]]; }
+function antwortenZu(r) { return (r.antworten && r.antworten[r.index]) || {}; }
+
+function frageAnzeigen(r) {
+  const q = aktuelleFrage(r);
+  if (!q) return zeige("fehlt", h("p", { text: "Diese Frage fehlt auf deinem Handy. Bitte die Seite neu laden." }));
+  const ant = antwortenZu(r);
+  const meine = ant[fb.uid];
+  const online = onlineSpieler(r);
+  const beantwortet = online.filter(u => ant[u]).length;
+  zeige("frage-" + r.index,
+    h("div", { class: "zeile" },
+      h("span", { class: "leise", text: "Frage " + (r.index + 1) + " von " + r.fragen.length }),
+      h("span", { id: "timertext", class: "leise", text: "" })),
+    h("div", { class: "timer" }, h("i", { id: "timerbalken" })),
+    h("div", { class: "frage", text: q.frage }),
+    q.antworten.map((a, i) => knopf(a, () => antworten(r, i), "antwort" + (meine && meine.w === i ? " gewaehlt" : ""), { disabled: !!meine })),
+    meine ? h("p", { class: "karte", text: "Antwort gesendet. " + beantwortet + " von " + online.length + " haben geantwortet." }) : null
+  );
+  timerAktualisieren();
+}
+
+function antworten(r, i) {
+  if (fb.jetzt() > r.frist) return;
+  raum.ref.child("antworten/" + r.index + "/" + fb.uid).set({ w: i, t: fb.jetzt() });
+}
+
+function timerAktualisieren() {
+  const balken = document.getElementById("timerbalken");
+  if (!balken || !stand || stand.phase !== "frage") return;
+  const rest = Math.max(0, stand.frist - fb.jetzt());
+  balken.style.width = (rest / (SEKUNDEN * 1000) * 100) + "%";
+  const t = document.getElementById("timertext");
+  if (t) t.textContent = Math.ceil(rest / 1000) + " s";
+}
+
+function aufloesungAnzeigen(r) {
+  const q = aktuelleFrage(r);
+  if (!q) return;
+  const meine = antwortenZu(r)[fb.uid];
+  const ich = (r.spieler || {})[fb.uid] || {};
+  const letzte = r.index + 1 >= (r.fragen || []).length;
+  let ergebnis;
+  if (!meine) ergebnis = h("p", { class: "nok", text: "Keine Antwort – die Zeit war um." });
+  else if (meine.w === q.richtig) ergebnis = h("p", { class: "ok", text: "Richtig! +" + (ich.zuletzt || 0) + " Punkte" });
+  else ergebnis = h("p", { class: "nok", text: "Leider falsch." });
+  zeige("aufl-" + r.index,
+    h("p", { class: "leise", text: "Frage " + (r.index + 1) + " von " + r.fragen.length }),
+    h("div", { class: "frage", text: q.frage }),
+    q.antworten.map((a, i) => knopf(a, null, "antwort" + (i === q.richtig ? " richtig" : (meine && meine.w === i ? " falsch" : "")), { disabled: true })),
+    h("div", { class: "karte" }, ergebnis, h("p", { text: q.erklaerung })),
+    h("h2", { text: "Zwischenstand" }), rangliste(r),
+    r.host === fb.uid ? knopf(letzte ? "Zum Endstand" : "Nächste Frage", () => weiter(stand)) : null
+  );
+}
+
+function endeAnzeigen(r) {
+  const ichHost = r.host === fb.uid;
+  zeige("ende",
+    h("h1", { text: "Endstand" }),
+    rangliste(r),
+    ichHost ? knopf("Neue Runde", () => raum.ref.update({ phase: "lobby", index: -1, fragen: null, antworten: null })) : h("p", { class: "leise", text: "Die Spielleitung kann eine neue Runde starten." }),
+    knopf("Raum verlassen", () => { raumVerlassen(); startseite(); }, "zweit")
+  );
+}
+
+// Nur das Handy der Spielleitung schaltet weiter und vergibt Punkte – so gibt es genau einen Schreiber
+function hostAblauf() {
+  const r = stand;
+  if (!r || !fb || r.host !== fb.uid) return;
+  if (r.phase === "frage") {
+    const schluessel = r.index + "-" + r.frist;
+    if (erledigt === schluessel) return;
+    const ant = antwortenZu(r);
+    const online = onlineSpieler(r);
+    const alle = online.length > 0 && online.every(u => ant[u]);
+    // Kleiner Puffer nach Fristende, damit knapp abgeschickte Antworten noch ankommen
+    if (alle || fb.jetzt() >= r.frist + 500) { erledigt = schluessel; aufloesen(r); }
+  } else if (r.phase === "aufloesung") {
+    const schluessel = r.index + "-" + r.frist;
+    if (weiterGeplant === schluessel) return;
+    weiterGeplant = schluessel;
+    setTimeout(() => weiter(stand), AUFLOESUNG_MS);
+  }
+}
+
+function aufloesen(r) {
+  const q = aktuelleFrage(r);
+  const ant = antwortenZu(r);
+  const upd = { phase: "aufloesung" };
+  for (const [u, s] of Object.entries(r.spieler || {})) {
+    const a = ant[u];
+    let p = 0;
+    if (a && q && a.w === q.richtig) {
+      // 500 fuer richtig, bis zu 500 extra fuer Tempo – Wissen zaehlt mehr als Schnelligkeit
+      const rest = Math.max(0, Math.min(1, (r.frist - a.t) / (SEKUNDEN * 1000)));
+      p = 500 + Math.round(500 * rest);
+    }
+    upd["spieler/" + u + "/punkte"] = (s.punkte || 0) + p;
+    upd["spieler/" + u + "/zuletzt"] = p;
+  }
+  raum.ref.update(upd);
+}
+
+let zuletztWeiter = "";
+function weiter(r) {
+  // Knopf und Zeitablauf koennen gleichzeitig ausloesen; nur der erste zaehlt
+  if (!r || !raum || r.phase !== "aufloesung" || r.host !== fb.uid) return;
+  const schluessel = r.index + "-" + r.frist;
+  if (zuletztWeiter === schluessel) return;
+  zuletztWeiter = schluessel;
+  if (r.index + 1 < r.fragen.length) raum.ref.update({ phase: "frage", index: r.index + 1, frist: fb.jetzt() + SEKUNDEN * 1000 });
+  else raum.ref.update({ phase: "ende" });
+}
+
+// ---------- Drucken ----------
+
+function drucken() {
+  const ziel = document.getElementById("druck");
+  let nr = 0;
+  const loesungen = [];
+  const teile = [h("h1", { text: "Betriebsdienst-Quiz – Fragen" })];
+  for (const t of THEMEN) {
+    const qs = fragenZuThema(t.id);
+    if (!qs.length) continue;
+    teile.push(h("h2", { text: t.name }));
+    teile.push(h("ol", { start: String(nr + 1) }, qs.map(q => {
+      nr++;
+      loesungen.push(nr + ". " + "abcd"[q.richtig] + ") " + q.antworten[q.richtig]);
+      return h("li", {}, h("strong", { text: q.frage }),
+        h("div", {}, q.antworten.map((a, i) => h("div", { text: "abcd"[i] + ") " + a }))));
+    })));
+  }
+  teile.push(h("h2", { class: "seitenumbruch", text: "Lösungen" }));
+  teile.push(h("div", {}, loesungen.map(l => h("div", { text: l }))));
+  ziel.replaceChildren(...teile);
+  window.print();
+}
+
+// ---------- Start ----------
+
+window.addEventListener("DOMContentLoaded", () => {
+  const code = new URLSearchParams(location.search).get("raum");
+  // Wer ueber den WhatsApp-Link kommt, soll nach der Namenseingabe direkt im Raum landen
+  if (code && /^\d{4}$/.test(code)) {
+    if (!name) nameSeite(() => beitreten(code)); else beitreten(code);
+  } else startseite();
+});
+</script>
+</body>
+</html>
