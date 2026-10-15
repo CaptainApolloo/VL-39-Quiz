@@ -54,6 +54,7 @@ p { margin: 8px 0; }
 .antwort.gewaehlt { border-color: var(--primaer); border-width: 3px; }
 .antwort.richtig { border-color: var(--richtig); background: var(--richtig-bg); font-weight: 700; }
 .antwort.falsch { border-color: var(--falsch); background: var(--falsch-bg); }
+.bild { display: block; max-width: 100%; max-height: 260px; margin: 8px auto 4px; border-radius: 8px; background: #fff; padding: 6px; }
 .frage { font-size: 23px; font-weight: 700; line-height: 1.3; margin: 14px 0 10px; }
 .karte { background: var(--flaeche); border: 1px solid var(--linie); border-radius: 12px; padding: 14px 16px; margin: 12px 0; }
 .ok { color: var(--richtig); font-weight: 700; }
@@ -88,6 +89,7 @@ li.weg { opacity: .5; }
 <main id="app"></main>
 <div id="druck"></div>
 
+<script src="fragen.js"></script>
 <script>
 "use strict";
 
@@ -105,49 +107,43 @@ const RUNDE_FRAGEN = 10;
 const SEKUNDEN = 20;
 const AUFLOESUNG_MS = 6000;
 
-const THEMEN = [
-  { id: "rahmen", name: "§ 23 – Rechtlicher Rahmen" },
-  { id: "begriffe", name: "Signale, Kommunikation, Gleisanlagen" },
-  { id: "fahrten", name: "Zugfahrt und Verschubfahrt" },
-  { id: "gefahrenraum", name: "Gefahrenraum und Schutzausrüstung" },
-  { id: "ek", name: "Eisenbahnkreuzungen bewachen" }
-];
+// Werden erst nach dem Entschluesseln befuellt – die Kursunterlage ist nur fuer die Gruppe freigegeben
+let THEMEN = [], BILDER = {}, FRAGEN = [], FRAGE_NACH_ID = {};
+let schluessel = "";
 
-// Fragen nur aus dem Gesetzestext (RIS, EisbEPV § 23). Die Kursunterlagen kommen spaeter dazu,
-// deshalb sind die anderen Themen noch leer statt mit erfundenen Inhalten gefuellt.
-const FRAGEN = [
-  { id: "r01", thema: "rahmen", frage: "Wie viele Unterrichtseinheiten muss die Ausbildung „Betriebsdienst“ mindestens umfassen?",
-    antworten: ["4", "6", "8", "12"], richtig: 2, erklaerung: "§ 23 Abs. 4: mindestens 8 Unterrichtseinheiten." },
-  { id: "r02", thema: "rahmen", frage: "Wie viele Unterrichtseinheiten können aus einer abgeschlossenen Ausbildung nach dem ArbeitnehmerInnenschutzgesetz höchstens angerechnet werden?",
-    antworten: ["2", "4", "6", "8"], richtig: 2, erklaerung: "§ 23 Abs. 5: höchstens sechs Unterrichtseinheiten." },
-  { id: "r03", thema: "rahmen", frage: "Bis wann muss die Prüfung über die allgemeinen Fachkenntnisse abgelegt werden?",
-    antworten: ["Innerhalb eines Monats nach Ausbildungsende", "Innerhalb von sechs Monaten nach Ausbildungsende", "Innerhalb eines Jahres ab Ende der Ausbildung", "Innerhalb von zwei Jahren"],
-    richtig: 2, erklaerung: "§ 23 Abs. 6: innerhalb eines Jahres ab Ende der Ausbildung." },
-  { id: "r04", thema: "rahmen", frage: "Welche Art von Prüfung ist nach der Ausbildung „Betriebsdienst“ vorgesehen?",
-    antworten: ["Schriftliche Prüfung", "Mündliche Prüfung", "Praktische Prüfung am Gleis", "Keine Prüfung"], richtig: 1, erklaerung: "§ 23 Abs. 6: eine mündliche Prüfung." },
-  { id: "r05", thema: "rahmen", frage: "Was ist vor Ausübung einer Tätigkeit im Betriebsdienst zusätzlich erforderlich?",
-    antworten: ["Eine Einweisung in die örtlichen Verhältnisse", "Ein Triebfahrzeugführerschein", "Eine zweite mündliche Prüfung", "Eine schriftliche Erlaubnis für jeden Einsatz"],
-    richtig: 0, erklaerung: "§ 23 Abs. 7: zusätzlich eine Einweisung in die örtlichen Verhältnisse." },
-  { id: "r06", thema: "rahmen", frage: "Wann darf man Eisenbahnanlagen auch ohne die Eignung für den Betriebsdienst betreten?",
-    antworten: ["Wenn man eine Warnweste trägt", "Wenn man von geschulten Eisenbahnbediensteten begleitet wird und betriebliche Maßnahmen ein gefahrloses Betreten gewährleisten", "Wenn gerade kein Zug in Sicht ist", "Wenn man die Anlage nur kurz überquert"],
-    richtig: 1, erklaerung: "§ 23 Abs. 2: Begleitung durch geschulte Eisenbahnbedienstete plus zusätzliche betriebliche Maßnahmen." },
-  { id: "r07", thema: "rahmen", frage: "Wodurch werden Eisenbahnkreuzungen im Betriebsdienst bewacht?",
-    antworten: ["Durch Armzeichen", "Durch Lichtsignale am Fahrzeug", "Durch Absperrbänder", "Durch Funkdurchsagen"], richtig: 0, erklaerung: "§ 23 Abs. 1 Z 3 und Abs. 3 Z 3: durch Armzeichen." },
-  { id: "r08", thema: "rahmen", frage: "Was gehört NICHT zum Aufgabenbereich „Betriebsdienst“?",
-    antworten: ["Tätigkeiten auf und in Eisenbahnanlagen", "Betriebliche Meldung von wahrgenommenen Unregelmäßigkeiten", "Tätigkeiten im Notfallmanagement auf Anordnung", "Das Führen von Triebfahrzeugen"],
-    richtig: 3, erklaerung: "§ 23 Abs. 3 zählt die Aufgaben auf – das Führen von Triebfahrzeugen ist nicht dabei." },
-  { id: "r09", thema: "rahmen", frage: "Wann werden Tätigkeiten im Notfallmanagement im Betriebsdienst vorgenommen?",
-    antworten: ["Jederzeit nach eigenem Ermessen", "Auf Anordnung", "Nur nach Dienstschluss", "Nur mit schriftlichem Antrag"], richtig: 1, erklaerung: "§ 23 Abs. 3 Z 4: auf Anordnung." },
-  { id: "r10", thema: "rahmen", frage: "Was umfasst das Thema „Bewachung von Eisenbahnkreuzungen durch Armzeichen“?",
-    antworten: ["Signalmittel, Zeichengebung und Bewachungsvorgang (Beginn und Ende)", "Fahrplanerstellung und Zugbildung", "Bremsprobe und Kupplung", "Fahrkartenkontrolle"],
-    richtig: 0, erklaerung: "§ 23 Abs. 4 Z 4 lit. a bis c." },
-  { id: "r11", thema: "rahmen", frage: "Welche Formen der Kommunikation nennt § 23 für den Betriebsdienst?",
-    antworten: ["Nur schriftlich", "Fernmündlich, mündlich und schriftlich", "Nur per Funk", "Nur mündlich"], richtig: 1, erklaerung: "§ 23 Abs. 3 Z 2." },
-  { id: "r12", thema: "rahmen", frage: "Wann entfällt die mündliche Prüfung für den Betriebsdienst?",
-    antworten: ["Wenn man über 50 Jahre alt ist", "Wenn innerhalb der Frist eine mündliche Prüfung für eine darauf aufbauende Ausbildung bestanden wird, die diese Fachkenntnisse berücksichtigt", "Wenn man eine Ausbildung nach dem ArbeitnehmerInnenschutzgesetz hat", "Sie entfällt nie"],
-    richtig: 1, erklaerung: "§ 23 Abs. 6." }
-];
-const FRAGE_NACH_ID = Object.fromEntries(FRAGEN.map(q => [q.id, q]));
+function b64zuBytes(t) {
+  t = t.replace(/-/g, "+").replace(/_/g, "/");
+  while (t.length % 4) t += "=";
+  return Uint8Array.from(atob(t), c => c.charCodeAt(0));
+}
+
+async function fragenEntschluesseln() {
+  // Schluessel aus dem Link (#k=…) bevorzugen, sonst den gemerkten – so reicht ein einziger Klick auf den Gruppen-Link
+  const ausLink = new URLSearchParams(location.hash.slice(1)).get("k");
+  schluessel = ausLink || lies("schluessel", "");
+  if (!schluessel || typeof VERSCHLUESSELT === "undefined") return false;
+  try {
+    const key = await crypto.subtle.importKey("raw", b64zuBytes(schluessel), "AES-GCM", false, ["decrypt"]);
+    const klar = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64zuBytes(VERSCHLUESSELT.iv) }, key, b64zuBytes(VERSCHLUESSELT.daten));
+    const d = JSON.parse(new TextDecoder().decode(klar));
+    THEMEN = d.THEMEN; BILDER = d.BILDER; FRAGEN = d.FRAGEN;
+    FRAGE_NACH_ID = Object.fromEntries(FRAGEN.map(q => [q.id, q]));
+    schreib("schluessel", schluessel);
+    return true;
+  } catch (e) {
+    console.error(e);
+    // Falscher oder veralteter Schluessel: vergessen, damit ein neuer Link greift
+    if (!ausLink) schreib("schluessel", "");
+    return false;
+  }
+}
+
+function keinZugang() {
+  zeige("gesperrt",
+    h("h1", { text: "Kein Zugang" }),
+    h("p", { text: "Bitte öffne das Quiz über den Link aus der WhatsApp-Gruppe." })
+  );
+}
 
 // ---------- Hilfen ----------
 
@@ -170,6 +166,9 @@ function h(tag, props, ...kinder) {
 }
 function knopf(text, onclick, klasse = "", extra = {}) { return h("button", { class: "knopf " + klasse, text, onclick, ...extra }); }
 function mischen(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function bildZu(q) {
+  return q.bild && BILDER[q.bild] ? h("img", { class: "bild", src: BILDER[q.bild], alt: "Abbildung zur Frage" }) : null;
+}
 function fragenZuThema(t) { return t === "alle" ? FRAGEN : FRAGEN.filter(q => q.thema === t); }
 
 let letzteSeite = "";
@@ -236,11 +235,10 @@ function themenSeite() {
   zeige("themen",
     h("h1", { text: "Alleine üben" }),
     h("p", { class: "leise", text: "Wähle ein Thema." }),
-    knopf("Alle Themen (" + FRAGEN.length + " Fragen)", () => soloStart(FRAGEN)),
+    knopf("Gemischt – 20 zufällige Fragen", () => soloStart(mischen(FRAGEN).slice(0, 20))),
     THEMEN.map(t => {
       const n = fragenZuThema(t.id).length;
-      return n ? knopf(t.name + " (" + n + ")", () => soloStart(fragenZuThema(t.id)), "zweit")
-               : knopf(t.name + " – Fragen folgen", null, "zweit", { disabled: true });
+      return n ? knopf(t.name + " (" + n + ")", () => soloStart(fragenZuThema(t.id)), "zweit") : null;
     }),
     fehler.length ? knopf("Meine Fehler üben (" + fehler.length + ")", () => soloStart(fehler.map(id => FRAGE_NACH_ID[id]))) : null,
     knopf("Zurück", startseite, "zweit")
@@ -248,24 +246,29 @@ function themenSeite() {
 }
 
 function soloStart(liste) {
-  solo = { fragen: mischen(liste).slice(0, RUNDE_FRAGEN), i: 0, richtig: 0 };
+  // Beim Alleine-Ueben ganze Themen durchspielen, sonst sieht man manche Fragen nie
+  solo = { fragen: mischen(liste), i: 0, richtig: 0 };
   soloFrage();
 }
 
 function soloFrage() {
   const q = solo.fragen[solo.i];
+  solo.beantwortet = false;
   // Reihenfolge mischen, damit man sich nicht "die dritte Antwort" merkt statt des Inhalts
   const reihenfolge = mischen(q.antworten.map((_, i) => i));
   const knoepfe = reihenfolge.map(idx => knopf(q.antworten[idx], () => soloAntwort(idx), "antwort", { "data-idx": idx }));
   const unten = h("div");
   zeige("solo-" + solo.i,
-    h("p", { class: "leise", text: "Frage " + (solo.i + 1) + " von " + solo.fragen.length }),
+    h("div", { class: "zeile" },
+      h("span", { class: "leise", text: "Frage " + (solo.i + 1) + " von " + solo.fragen.length }),
+      h("button", { class: "linkknopf", text: "Beenden", onclick: () => { solo.fragen = solo.fragen.slice(0, solo.i + (solo.beantwortet ? 1 : 0)); soloEnde(); } })),
     h("div", { class: "frage", text: q.frage }),
-    knoepfe, unten
+    bildZu(q), knoepfe, unten
   );
 
   function soloAntwort(idx) {
     const korrekt = idx === q.richtig;
+    solo.beantwortet = true;
     if (korrekt) solo.richtig++;
     for (const b of knoepfe) {
       const i = Number(b.dataset.idx);
@@ -306,7 +309,7 @@ function mehrspielerBereit() { return !!FIREBASE_CONFIG.apiKey && typeof firebas
 let fb = null;
 async function verbinden() {
   if (fb) return fb;
-  firebase.initializeApp(FIREBASE_CONFIG);
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   // Anonyme Anmeldung laeuft unsichtbar – die Datenbank-Regeln brauchen eine Kennung, die Spieler aber kein Konto
   await firebase.auth().signInAnonymously();
   const db = firebase.database();
@@ -433,7 +436,7 @@ function spielleitungPruefen() {
 }
 
 function teilen() {
-  const url = location.origin + location.pathname + "?raum=" + raum.code;
+  const url = location.origin + location.pathname + "?raum=" + raum.code + "#k=" + schluessel;
   const text = "Mach mit beim Betriebsdienst-Quiz! Raum " + raum.code + ": " + url;
   location.href = "https://wa.me/?text=" + encodeURIComponent(text);
 }
@@ -509,6 +512,7 @@ function frageAnzeigen(r) {
       h("span", { id: "timertext", class: "leise", text: "" })),
     h("div", { class: "timer" }, h("i", { id: "timerbalken" })),
     h("div", { class: "frage", text: q.frage }),
+    bildZu(q),
     q.antworten.map((a, i) => knopf(a, () => antworten(r, i), "antwort" + (meine && meine.w === i ? " gewaehlt" : ""), { disabled: !!meine })),
     meine ? h("p", { class: "karte", text: "Antwort gesendet. " + beantwortet + " von " + online.length + " haben geantwortet." }) : null
   );
@@ -542,6 +546,7 @@ function aufloesungAnzeigen(r) {
   zeige("aufl-" + r.index,
     h("p", { class: "leise", text: "Frage " + (r.index + 1) + " von " + r.fragen.length }),
     h("div", { class: "frage", text: q.frage }),
+    bildZu(q),
     q.antworten.map((a, i) => knopf(a, null, "antwort" + (i === q.richtig ? " richtig" : (meine && meine.w === i ? " falsch" : "")), { disabled: true })),
     h("div", { class: "karte" }, ergebnis, h("p", { text: q.erklaerung })),
     h("h2", { text: "Zwischenstand" }), rangliste(r),
@@ -622,7 +627,7 @@ function drucken() {
     teile.push(h("ol", { start: String(nr + 1) }, qs.map(q => {
       nr++;
       loesungen.push(nr + ". " + "abcd"[q.richtig] + ") " + q.antworten[q.richtig]);
-      return h("li", {}, h("strong", { text: q.frage }),
+      return h("li", {}, h("strong", { text: q.frage }), bildZu(q),
         h("div", {}, q.antworten.map((a, i) => h("div", { text: "abcd"[i] + ") " + a }))));
     })));
   }
@@ -634,7 +639,8 @@ function drucken() {
 
 // ---------- Start ----------
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
+  if (!(await fragenEntschluesseln())) return keinZugang();
   const code = new URLSearchParams(location.search).get("raum");
   // Wer ueber den WhatsApp-Link kommt, soll nach der Namenseingabe direkt im Raum landen
   if (code && /^\d{4}$/.test(code)) {
