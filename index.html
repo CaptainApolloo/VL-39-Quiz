@@ -3,18 +3,79 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Signal-Memory</title>
+<title>Signal-Training</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="kopf">
-  <h1>Signal-Memory</h1>
+  <h1 id="titel">Signal-Training</h1>
   <button id="btnMenue" class="klein" hidden>Menü</button>
 </header>
 
 <main>
-  <!-- Startbildschirm -->
-  <section id="start" class="karte-box">
+  <!-- Startseite: Spielauswahl -->
+  <section id="home">
+    <button class="spielwahl" data-ziel="trStart">
+      <strong>Signal-Trainer</strong>
+      <span>Signal erkennen, 4 Antworten. Falsche Signale kommen öfter wieder. Am besten zum Lernen.</span>
+    </button>
+    <button class="spielwahl" data-ziel="start">
+      <strong>Memory</strong>
+      <span>Symbol und Bezeichnung als Paar finden.</span>
+    </button>
+    <p class="fuss">153 Signale · Quelle: Kursunterlage</p>
+  </section>
+
+  <!-- ===== Trainer ===== -->
+  <section id="trStart" class="karte-box" hidden>
+    <label>Signalgruppe
+      <select id="trGruppe"></select>
+    </label>
+    <label>Abfrage
+      <select id="trModus">
+        <option value="bild">Symbol sehen → Bezeichnung wählen</option>
+        <option value="name">Bezeichnung sehen → Symbol wählen</option>
+      </select>
+    </label>
+    <label>Fragen pro Runde
+      <select id="trAnzahl">
+        <option value="10">10</option>
+        <option value="15" selected>15</option>
+        <option value="25">25</option>
+      </select>
+    </label>
+    <div class="fortschritt"><div id="trBalken"></div></div>
+    <p id="trStand" class="hinweis"></p>
+    <button id="trLos" class="gross">Training starten</button>
+    <button id="trReset" class="klein">Fortschritt dieser Gruppe zurücksetzen</button>
+  </section>
+
+  <section id="trFrage" hidden>
+    <div class="status">
+      <span id="trNr"></span>
+      <span id="trPunkte"></span>
+    </div>
+    <div id="trAufgabe" class="aufgabe"></div>
+    <div id="trOptionen" class="optionen"></div>
+    <div id="trLoesung" class="loesung" hidden>
+      <p id="trUrteil" class="meldung"></p>
+      <img id="trRueck" alt="">
+      <button id="trWeiter" class="gross">Weiter</button>
+    </div>
+  </section>
+
+  <section id="trEnde" hidden>
+    <div class="karte-box">
+      <h2>Runde beendet</h2>
+      <p id="trEndeText"></p>
+      <button id="trNochmal" class="gross">Nächste Runde</button>
+    </div>
+    <h3 id="trFehlerTitel">Diese Signale nochmal anschauen</h3>
+    <div id="trFehler" class="rueckblick"></div>
+  </section>
+
+  <!-- ===== Memory ===== -->
+  <section id="start" class="karte-box" hidden>
     <p class="hinweis">Finde zu jedem Signal die passende Bezeichnung. Lies dabei genau: Alte und neue Signale, Tag- und Nachtsignale haben eigene Karten.</p>
     <label>Signalgruppe
       <select id="wahlGruppe"></select>
@@ -28,16 +89,14 @@
       </select>
     </label>
     <button id="btnStart" class="gross">Spiel starten</button>
-    <p class="fuss">153 Signale · Quelle: Kursunterlage</p>
   </section>
 
-  <!-- Spiel -->
   <section id="spiel" hidden>
     <div class="status">
       <span id="anzeigePaare"></span>
       <span id="anzeigeZuege"></span>
     </div>
-    <div id="vorschau" class="vorschau leer">
+    <div id="vorschau" class="vorschau">
       <div class="vs-platz" id="vs1"></div>
       <div class="vs-platz" id="vs2"></div>
     </div>
@@ -45,7 +104,6 @@
     <div id="feld" class="feld"></div>
   </section>
 
-  <!-- Ergebnis mit allen Paaren zum Nachlernen -->
   <section id="ende" hidden>
     <div class="karte-box">
       <h2>Geschafft!</h2>
@@ -62,6 +120,8 @@
 <div id="zoom" class="zoom" hidden><img alt=""></div>
 
 <script src="karten.js"></script>
+<script src="gemeinsam.js"></script>
+<script src="trainer.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
