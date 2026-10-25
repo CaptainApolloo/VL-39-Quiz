@@ -74,36 +74,39 @@ function trStarten() {
 
 function trFrageZeigen() {
   const id = tr.liste[tr.pos], c = KARTE[id];
-  const ids = mischen([id, ...ablenker(id)]);
   $("trNr").textContent = `Frage ${tr.pos + 1} / ${tr.liste.length}`;
-  $("trPunkte").textContent = `Richtig: ${tr.richtig}`;
+  $("trPunkte").textContent = `Gewusst: ${tr.richtig}`;
   $("trLoesung").hidden = true;
 
   const auf = $("trAufgabe"), opt = $("trOptionen");
   opt.innerHTML = "";
-  if (tr.modus === "bild") {
-    auf.className = "aufgabe bildaufgabe";
-    auf.innerHTML = `<p class="frage">Welches Signal ist das?</p><img src="${bild("s", id)}" alt="">`;
+  const knopf = (inhalt, klick, klasse = "opt") => {
+    const b = document.createElement("button");
+    b.className = klasse; b.innerHTML = inhalt;
+    b.addEventListener("click", () => klick(b));
+    opt.appendChild(b); return b;
+  };
+
+  if (tr.modus === "mbild" || tr.modus === "mname") {
+    // Muendlich: keine Auswahl, weil die Pruefung freies Erinnern verlangt, nicht Wiedererkennen
+    auf.className = tr.modus === "mbild" ? "aufgabe bildaufgabe" : "aufgabe textaufgabe";
+    auf.innerHTML = tr.modus === "mbild"
+      ? `<p class="frage">Sag laut: Wie heißt das Signal, welche Signalart, was bedeutet es?</p><img src="${bild("s", id)}" alt="">`
+      : `<p class="frage">Beschreibe laut, wie das Signal aussieht:</p><strong>${c.t}</strong><span>${c.k} · ${c.a}</span>`;
     opt.className = "optionen text";
-    for (const o of ids) {
-      const b = document.createElement("button");
-      b.className = "opt";
-      b.dataset.id = o;
-      b.innerHTML = `<strong>${KARTE[o].t}</strong><span>${KARTE[o].k} · ${KARTE[o].a}</span>`;
-      b.addEventListener("click", () => antworten(b));
-      opt.appendChild(b);
-    }
+    knopf("Aufdecken", aufdecken, "gross");
   } else {
-    auf.className = "aufgabe textaufgabe";
-    auf.innerHTML = `<p class="frage">Welches Symbol gehört dazu?</p><strong>${c.t}</strong><span>${c.k} · ${c.a}</span>`;
-    opt.className = "optionen bilder";
-    for (const o of ids) {
-      const b = document.createElement("button");
-      b.className = "opt";
-      b.dataset.id = o;
-      b.innerHTML = `<img src="${bild("s", o)}" alt="">`;
-      b.addEventListener("click", () => antworten(b));
-      opt.appendChild(b);
+    const ids = mischen([id, ...ablenker(id)]);
+    if (tr.modus === "bild") {
+      auf.className = "aufgabe bildaufgabe";
+      auf.innerHTML = `<p class="frage">Welches Signal ist das?</p><img src="${bild("s", id)}" alt="">`;
+      opt.className = "optionen text";
+      for (const o of ids) knopf(`<strong>${KARTE[o].t}</strong><span>${KARTE[o].k} · ${KARTE[o].a}</span>`, antworten).dataset.id = o;
+    } else {
+      auf.className = "aufgabe textaufgabe";
+      auf.innerHTML = `<p class="frage">Welches Symbol gehört dazu?</p><strong>${c.t}</strong><span>${c.k} · ${c.a}</span>`;
+      opt.className = "optionen bilder";
+      for (const o of ids) knopf(`<img src="${bild("s", o)}" alt="">`, antworten).dataset.id = o;
     }
   }
   zeige("trFrage", "Signal-Trainer");
@@ -119,12 +122,26 @@ function antworten(btn) {
     if (schluessel(KARTE[b.dataset.id]) === schluessel(KARTE[id])) b.classList.add("ok");
   }
   if (!ok) btn.classList.add("falsch");
-  tr.fragen++;
+  verbuchen(id, ok);
+  loesungZeigen(id, ok ? "Richtig!" : "Leider falsch. Das richtige Signal:", ok ? "ok" : "falsch", false);
+}
 
+function aufdecken(btn) {
+  btn.hidden = true;
+  loesungZeigen(tr.liste[tr.pos], "Vergleiche mit deiner Antwort:", "", true);
+}
+
+// Selbstbewertung im muendlichen Modus; ehrlich bewerten ist Teil der Uebung
+function selbst(ok) {
+  verbuchen(tr.liste[tr.pos], ok);
+  weiter();
+}
+
+function verbuchen(id, ok) {
+  tr.fragen++;
   const k = kartei(), alt = eintrag(k, tr.modus, id);
-  const erstesMal = !tr.wiederholt.has(id);
   if (ok) {
-    if (erstesMal) {
+    if (!tr.wiederholt.has(id)) {
       tr.richtig++;
       const fach = Math.min((alt?.fach ?? 0) + 1, PAUSE.length - 1);
       setzeEintrag(k, tr.modus, id, { fach, faellig: Date.now() + PAUSE[fach] });
@@ -139,15 +156,23 @@ function antworten(btn) {
     }
   }
   karteiSpeichern(k);
+  $("trPunkte").textContent = `Gewusst: ${tr.richtig}`;
+}
 
-  $("trUrteil").textContent = ok ? "Richtig!" : "Leider falsch. Das richtige Signal:";
-  $("trUrteil").className = "meldung " + (ok ? "ok" : "falsch");
-  // erst nach dem Laden scrollen: vorher hat das Bild Hoehe 0 und der Weiter-Knopf rutscht danach aus dem Bild
-  const zumKnopf = () => $("trWeiter").scrollIntoView({ behavior: "smooth", block: "end" });
+function loesungZeigen(id, text, art, muendlich) {
+  $("trUrteil").textContent = text;
+  $("trUrteil").className = "meldung " + art;
+  // beim Namen->Aussehen-Modus fehlt sonst das Bild, mit dem man die eigene Beschreibung vergleicht
+  $("trSym").hidden = tr.modus !== "mname";
+  if (tr.modus === "mname") $("trSym").src = bild("s", id);
+  $("trWeiter").hidden = muendlich;
+  $("trSelbst").hidden = !muendlich;
+  const ziel = muendlich ? $("trSelbst") : $("trWeiter");
+  // erst nach dem Laden scrollen: vorher hat das Bild Hoehe 0 und die Knoepfe rutschen danach aus dem Bild
+  const zumKnopf = () => ziel.scrollIntoView({ behavior: "smooth", block: "end" });
   $("trRueck").onload = zumKnopf;
   $("trRueck").src = bild("n", id);
   $("trLoesung").hidden = false;
-  $("trPunkte").textContent = `Richtig: ${tr.richtig}`;
   if ($("trRueck").complete) zumKnopf();
 }
 
@@ -158,7 +183,7 @@ function weiter() {
 
 function trBeenden() {
   const erste = tr.liste.length - tr.wiederholt.size;
-  $("trEndeText").textContent = `${tr.richtig} von ${erste} Signalen beim ersten Versuch richtig.`;
+  $("trEndeText").textContent = `${tr.richtig} von ${erste} Signalen beim ersten Versuch gewusst.`;
   const f = $("trFehler");
   f.innerHTML = "";
   for (const id of tr.falschSet) f.appendChild(paarElement(id));
@@ -173,6 +198,9 @@ $("trModus").addEventListener("change", standZeigen);
 $("trLos").addEventListener("click", trStarten);
 $("trNochmal").addEventListener("click", trStarten);
 $("trWeiter").addEventListener("click", weiter);
+$("trJa").addEventListener("click", () => selbst(true));
+$("trNein").addEventListener("click", () => selbst(false));
+$("trSym").addEventListener("click", () => zoomen($("trSym").src));
 $("trRueck").addEventListener("click", () => zoomen($("trRueck").src));
 $("trReset").addEventListener("click", () => {
   const g = $("trGruppe").value, modus = $("trModus").value;

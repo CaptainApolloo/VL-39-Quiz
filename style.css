@@ -103,3 +103,11 @@ h3 { margin: 22px 0 10px; }
 
 .loesung { background: var(--panel); border-radius: 12px; padding: 12px; margin-top: 10px; text-align: center; }
 .loesung img { max-width: 70%; max-height: 38vh; object-fit: contain; }
+
+/* Selbstbewertung im muendlichen Modus */
+.selbst { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.selbst button { padding: 14px; font-size: 1.05rem; font-weight: 700; color: #fff; }
+.selbst .ja { background: var(--ok); }
+.selbst .nein { background: var(--falsch); }
+.loesung img.sym { display: block; margin: 0 auto 8px; max-height: 22vh; }
+.optionen .gross { margin-top: 4px; }

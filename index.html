@@ -17,7 +17,7 @@
   <section id="home">
     <button class="spielwahl" data-ziel="trStart">
       <strong>Signal-Trainer</strong>
-      <span>Signal erkennen, 4 Antworten. Falsche Signale kommen öfter wieder. Am besten zum Lernen.</span>
+      <span>Mit 4 Antworten oder mündlich wie in der Prüfung. Falsche Signale kommen öfter wieder.</span>
     </button>
     <button class="spielwahl" data-ziel="start">
       <strong>Memory</strong>
@@ -35,6 +35,8 @@
       <select id="trModus">
         <option value="bild">Symbol sehen → Bezeichnung wählen</option>
         <option value="name">Bezeichnung sehen → Symbol wählen</option>
+        <option value="mbild">Mündlich: Symbol sehen → Bezeichnung laut sagen</option>
+        <option value="mname">Mündlich: Bezeichnung sehen → Aussehen laut beschreiben</option>
       </select>
     </label>
     <label>Fragen pro Runde
@@ -59,8 +61,13 @@
     <div id="trOptionen" class="optionen"></div>
     <div id="trLoesung" class="loesung" hidden>
       <p id="trUrteil" class="meldung"></p>
+      <img id="trSym" class="sym" alt="" hidden>
       <img id="trRueck" alt="">
       <button id="trWeiter" class="gross">Weiter</button>
+      <div id="trSelbst" class="selbst" hidden>
+        <button id="trNein" class="nein">Nicht gewusst</button>
+        <button id="trJa" class="ja">Gewusst</button>
+      </div>
     </div>
   </section>
 
